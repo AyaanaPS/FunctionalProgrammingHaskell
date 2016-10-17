@@ -1,0 +1,250 @@
+import Control.Monad
+
+{- Part A. Question 1 -}
+
+-- This function uses the list monad to get the Ramanujan numbers.
+hr_solutions :: [((Integer, Integer), (Integer, Integer), Integer)]
+hr_solutions = do
+   i <- [1..]
+   j <- [1..i-1] 
+   k <- [1..j-1] 
+   l <- [1..k-1] 
+   guard $ i^3 + l^3 == j^3 + k^3
+   return ((i, l), (j, k), i^3 + l^3)
+
+{- Part A. Question 2 -}
+
+-- This gets a list of natural numbers below 1000 that are multiples
+-- of 3 or 5. This is done using 'guard'.
+get_multiples :: [Integer]
+get_multiples = do
+    x <- [1..999]
+    guard $ ((x `mod` 5 == 0) || (x `mod` 3 == 0))
+    return x
+
+-- This does the same thing as get_multiples, but without using guard.
+get_multiples2 :: [Integer]
+get_multiples2 = do
+    x <- [1..999]
+    if ((x `mod` 5 == 0) || (x `mod` 3 == 0)) then return () else mzero
+    return (x)
+
+val = sum (get_multiples)
+val2 = sum (get_multiples2)
+
+{- Part A. Question 3 -}
+
+-- This returns true if the inputted number is a palindromic number.
+isPalindrome :: Integer -> Bool
+isPalindrome x = (show x) == reverse (show x)
+
+-- This uses the list monad to find the largest palindrome that is the
+-- product of two 3 digit numbers.
+largestPalindrome :: Integer
+largestPalindrome = maximum (do
+    i <- [100..999]
+    j <- [100..999]
+    guard $ isPalindrome (i * j)
+    return (i * j))
+
+{- Part A. Question 4 -}
+
+type Expr = [Item]
+
+data Item = N Int | O Op
+    deriving Show
+
+data Op = Add | Sub | Cat
+    deriving Show
+
+ops :: [Item]
+ops = [O Add, O Sub, O Cat]
+
+-- This gets all valid expressions from the puzzle description.
+exprs = 
+    do
+        o1 <- ops
+        o2 <- ops
+        o3 <- ops
+        o4 <- ops
+        o5 <- ops
+        o6 <- ops
+        o7 <- ops
+        o8 <- ops
+        return [N 1, o1, N 2, o2, N 3, o3, N 4, o4, N 5, o5, N 6, o6, N 7, o7, N 8, o8, N 9]
+
+-- This removes all Cat operators by concatenating the numbers to the
+-- left and right of the operator.
+normalize :: Expr -> Expr
+normalize [N i] = [N i]
+normalize (N i : O Cat : N j : rest) = normalize ((N ((10 * i) + j)) : rest)
+normalize (N i : O x : N j : rest) = N i : O x : normalize(N j : rest)
+normalize _ = error "normalize: invalid argument"
+
+-- This evaluates the given expression and results in an int.
+evaluate :: Expr -> Int
+evaluate [N i] = i
+evaluate (N i : O Add : N j : rest) = evaluate ((N (i + j)) : rest)
+evaluate (N i : O Sub : N j : rest) = evaluate ((N (i - j)) : rest)
+evaluate _ = error "evaluate: invalid argument"
+
+-- Pick out the expressions that evaluate to a particular number.
+find :: Int -> [Expr] -> [Expr]
+find n = filter (\e -> evaluate (normalize e) == n)
+
+-- Pretty-print an expression.
+pprint :: Expr -> String
+pprint [N i] = show i
+pprint (N i : O Add : es) = show i ++ " + " ++ pprint es
+pprint (N i : O Sub : es) = show i ++ " - " ++ pprint es
+pprint (N i : O Cat : es) = show i ++ pprint es
+pprint _ = error "pprint: invalid argument"
+
+-- Run the computation and print out the answers.
+run :: IO ()
+run = mapM_ putStrLn $ map pprint $ find 100 exprs
+
+{- Part B. Question 1 -}
+
+{- Because concatMap <anything> [] gives the [], we can evaluate this in the
+    following way. -}
+
+--[1..6] >>= (\n1 -> ([1..6] >>= (\n2 -> [] >> (return (n1, n2)))))
+--[1..6] >>= (\n1 -> ([1..6] >>= (\n2 -> [] >>= (\_ -> return (n1, n2)))))
+--concatMap (\n1 -> ([1..6] >>= (\n2 -> [] >>= (\_ -> return (n1, n2))))) [1..6]
+--concatMap (\n1 -> (concatMap (\n2 -> [] >>= (\_ -> return (n1, n2))) [1..6])) [1..6]
+--concatMap (\n1 -> (concatMap (\n2 -> (concatMap (\_ -> return (n1, n2)) [])) [1..6])) [1..6]
+--concatMap (\n1 -> (concatMap (\n2 -> []) [1..6])) [1..6]
+--concatMap (\n1 -> (concat (map (\n2 -> []) [1..6]))) [1..6]
+--concatMap (\n1 -> []) [1..6]
+--concat (map (\n1 -> []))
+--[]
+
+{- Part B. Question 2 -}
+
+{- Expression 1 -}
+
+--[1..6] >>= (\n1 -> ([1..6] >>= (\n2 -> (return <anything>) >> (return (n1, n2)))))
+--[1..6] >>= (\n1 -> ([1..6] >>= (\n2 -> (return <anything>) >>= (\_ -> return (n1, n2)))))
+--concatMap (\n1 -> ([1..6] >>= (\n2 -> (return <anything>) >>= (\_ -> return (n1, n2))))) [1..6]
+--concatMap (\n1 -> (concatMap (\n2 -> (return <anything>) >>= (\_ -> return (n1, n2))) [1..6])) [1..6]
+--concatMap (\n1 -> (concatMap (\n2 -> (concatMap (\_ -> return (n1, n2)) (return <anything>))) [1..6])) [1..6]
+--concatMap (\n1 -> (concatMap (\n2 -> (concat (map (\_ -> return (n1, n2)) (return <anything>)))) [1..6])) [1..6]
+
+-- map (\_ -> return (n1, n2)) (return <anything>) will replace everything in
+-- the return <anything> with return (n1, n2). Thus, the result of this map
+-- is just (return (n1, n2))
+
+--concatMap (\n1 -> (concatMap (\n2 -> (concat (return (n1, n2))))))
+
+-- concat (return (n1, n2)) will just give return (n1, n2) since (return (n1, n2)) 
+-- is simply [(n1, n2)], which doesn't really need to be concatted.
+
+--concatMap (\n1 -> (concatMap (\n2 -> return (n1, n2)) [1..6])) [1..6]
+
+{- Expression 2 -}
+
+--[1..6] >>= (\n1 -> ([1..6] >>= (\n2 -> return (n1, n2))))
+--concatMap (\n1 -> ([1..6] >>= (\n2 -> return (n1, n2)))) [1..6]
+--concatMap (\n1 -> (concatMap (\n2 -> return (n1, n2)) [1..6])) [1..6]
+
+{- Thus, both expressions evaluate to the same thing. -}
+
+{- Part B. Question 3 -}
+
+{-
+
+let s = ["aaxybb", "aazwbb", "foobar", "aaccbb", "baz"] in
+    do ['a', 'a', c1, c2, 'b',]
+
+s >>=
+    \y -> case y of
+        ['a', 'a', c1, c2, 'b', 'b'] -> return [c1, c2]
+    _ -> []
+
+concatMap (\y -> case y of
+                ['a', 'a', c1, c2, 'b', 'b'] -> return [c1, c2]
+                _ -> fail "Pattern match failure in do expression") s
+concat (map (\y -> case y of
+                ['a', 'a', c1, c2, 'b', 'b'] -> return [c1, c2]
+                _ -> fail "Pattern match failure in do expression")
+        s)
+
+concat (map (\y -> case y of
+                ['a', 'a', c1, c2, 'b', 'b'] -> return [c1, c2]
+                _ -> fail "Pattern match failure in do expression")
+        ["aaxybb", "aazwbb", "foobar", "aaccbb", "baz"])
+
+concat (map (\y -> case y of
+                ['a', 'a', c1, c2, 'b', 'b'] -> return [c1, c2]
+                _ -> fail "Pattern match failure in do expression")
+        [['a', 'a', 'x', 'y', 'b', 'b'], ['a', 'a', 'z', 'w', 'b', 'b'], 
+         ['f', 'o', 'o', 'b', 'a', 'r'], ['a', 'a', 'c', 'c', 'b', 'b']
+         ['b', 'a', 'z']])
+
+This then maps the function on to each list of characters in the list s.
+Thus, a list pattern matches when it's first two values are 'a' and its 
+last two values are 'b'. This is only true for "aaxybb", "aazwbb", "aaccbb".
+For the rest of the strings, the function will match with the _, which just
+returns []. Thus, the result will just be [['x', 'y'], ['z', 'w'], ['c', 'c']].
+
+If the fail for the list monad used the default definition, this code would
+fail at the string foobar and instead of continuing to check the rest of 
+the elements, it will report an error and stop running. Thus, it would
+not work as desired.
+-}
+
+{- Part B. Question 4 -}
+        
+--Case of m = [x1, x2, ...]
+
+
+--m >>= k = foldr ((++) . k) [] m
+
+--foldr ((++) . k) [] [x1, x2, ...]
+--foldr (\x r -> (++) (k x) r) [] [x1, x2, ...]
+--(\x r -> (++) (k x) r) x1 (foldr (\x r -> (++) (k x)  r) [] [x2, ...])
+--(++) (k x1) (foldr (\x r -> (++) (k x) r) [] [x2, ...])
+--(k x1) ++ (foldr (\x r -> (++) (k x) r) [] [x2, ...])
+--(k x1) ++ ((\x r -> (++) (k x) r) x2 (foldr (\x r -> (++) (k x) r) [] [x3, ...]))
+--(k x1) ++ (k x2) ++ (foldr (\x r -> (++) (k x) r) [] [x3, ...])
+
+-- This continues for the remainder of the list.
+
+
+--m >>= k = concat (map k m)
+
+--concat (map k [x1, x2, ...])
+--concat ([k x1, k x2, ...])
+--concat ([[k x1], [k x2], ...])
+--[k x1, k x2, ...]
+
+
+--Case of m = []
+
+--m >>= k = foldr ((++) . k) [] m
+
+--foldr ((++) . k) [] []
+--foldr (\x r -> (++) (k x) r) [] []
+--[]
+
+--m >>= k = concat (map k m)
+
+--concat (map k [])
+--concat ([])
+--[]
+
+{- Thus, these do the same thing -}
+
+
+{- Part B. Question 5 -}
+
+{- The problem with this is that even though the list can have different
+    types, we still cannot simply add numbers in this list. We still can't
+    add a Float and an Int without receiving an error. The anySum function
+    simply checks if the ns value is of type AnyNum, which does not mean
+    that it is the same type as AnyNum n.
+
+    This would be difficult to fix because it requires adding many case
+    statements. We would have to check for every type of Num that exists. 
+-}
